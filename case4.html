@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经典推箱子 | Sokoban</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        dark: '#1F2937',
+                        light: '#F3F4F6'
+                    },
+                    fontFamily: {
+                        pixel: ['"Press Start 2P"', 'cursive', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .pixel-art {
+                image-rendering: pixelated;
+                image-rendering: -moz-crisp-edges;
+                image-rendering: crisp-edges;
+            }
+            .game-shadow {
+                box-shadow: 0 0 0 2px #000, 8px 8px 0 #0003;
+            }
+            .btn-hover {
+                @apply transition-all duration-200 hover:scale-105 active:scale-95;
+            }
+            .game-container {
+                perspective: 1000px;
+            }
+            .game-board {
+                transform-style: preserve-3d;
+                transition: transform 0.5s;
+            }
+            .game-board:hover {
+                transform: translateY(-5px);
+            }
+        }
+    </style>
+    
+    <!-- 引入像素风格字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-dark to-gray-800 min-h-screen text-light flex flex-col items-center justify-center p-4 font-pixel text-sm md:text-base">
+    <!-- 游戏标题 -->
+    <header class="mb-6 text-center">
+        <h1 class="text-[clamp(1.5rem,5vw,2.5rem)] text-accent mb-2 tracking-wider animate-pulse">推箱子</h1>
+        <p class="text-gray-400 text-xs md:text-sm">SOKOBAN</p>
+    </header>
+    
+    <!-- 游戏主容器 -->
+    <main class="flex flex-col md:flex-row gap-8 items-center md:items-start justify-center w-full max-w-5xl">
+        <!-- 游戏信息面板 -->
+        <div class="w-full md:w-64 bg-dark/60 backdrop-blur-sm rounded-lg p-4 game-shadow">
+            <div class="mb-6">
+                <h2 class="text-secondary border-b border-gray-700 pb-2 mb-3">游戏信息</h2>
+                <div class="space-y-2 text-sm">
+                    <p><span class="text-accent">关卡:</span> <span id="level-display">1</span>/<span id="total-levels">5</span></p>
+                    <p><span class="text-accent">步数:</span> <span id="moves-display">0</span></p>
+                    <p><span class="text-accent">状态:</span> <span id="status-display">进行中</span></p>
+                </div>
+            </div>
+            
+            <div class="mb-6">
+                <h2 class="text-secondary border-b border-gray-700 pb-2 mb-3">控制</h2>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div></div>
+                    <button id="btn-up" class="bg-primary/80 hover:bg-primary rounded p-2 btn-hover">
+                        <i class="fa fa-arrow-up"></i>
+                    </button>
+                    <div></div>
+                    <button id="btn-left" class="bg-primary/80 hover:bg-primary rounded p-2 btn-hover">
+                        <i class="fa fa-arrow-left"></i>
+                    </button>
+                    <button id="btn-down" class="bg-primary/80 hover:bg-primary rounded p-2 btn-hover">
+                        <i class="fa fa-arrow-down"></i>
+                    </button>
+                    <button id="btn-right" class="bg-primary/80 hover:bg-primary rounded p-2 btn-hover">
+                        <i class="fa fa-arrow-right"></i>
+                    </button>
+                </div>
+                <p class="text-xs text-gray-400">或使用方向键控制</p>
+            </div>
+            
+            <div class="flex flex-col gap-3">
+                <button id="btn-restart" class="bg-accent/80 hover:bg-accent text-dark py-2 px-4 rounded btn-hover">
+                    <i class="fa fa-refresh mr-1"></i> 重置关卡
+                </button>
+                <button id="btn-prev" class="bg-gray-600/80 hover:bg-gray-600 py-2 px-4 rounded btn-hover" disabled>
+                    <i class="fa fa-arrow-left mr-1"></i> 上一关
+                </button>
+                <button id="btn-next" class="bg-secondary/80 hover:bg-secondary text-dark py-2 px-4 rounded btn-hover">
+                    下一关 <i class="fa fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 游戏区域 -->
+        <div class="game-container">
+            <div id="game-board" class="game-board bg-gray-900 rounded-lg overflow-hidden game-shadow"></div>
+        </div>
+    </main>
+    
+    <!-- 游戏说明 -->
+    <footer class="mt-8 text-center text-xs text-gray-500 max-w-2xl">
+        <p>游戏目标：将所有箱子推到目标位置上。玩家只能推动箱子，不能拉动，且一次只能推一个箱子。</p>
+        <p class="mt-2">© 2023 经典推箱子 | 使用键盘方向键或屏幕按钮移动</p>
+    </footer>
+    
+    <!-- 胜利弹窗 -->
+    <div id="win-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-dark p-6 rounded-lg text-center max-w-md w-full game-shadow transform transition-all">
+            <h2 class="text-accent text-xl mb-4">恭喜过关！</h2>
+            <p class="mb-2">你已成功完成第 <span id="win-level">1</span> 关</p>
+            <p class="mb-6 text-gray-400">总步数: <span id="win-moves">0</span></p>
+            <button id="btn-next-level" class="bg-secondary hover:bg-secondary/80 text-dark py-2 px-6 rounded btn-hover">
+                下一关 <i class="fa fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏常量
+        const TILE_SIZE = 40; // 每个格子的大小(像素)
+        const KEY_CODES = {
+            LEFT: 37,
+            RIGHT: 39,
+            UP: 38,
+            DOWN: 40,
+            W: 87,
+            A: 65,
+            S: 83,
+            D: 68
+        };
+        
+        // 游戏元素类型
+        const TILE_TYPES = {
+            FLOOR: 0,      // 地板
+            WALL: 1,       // 墙
+            BOX: 2,        // 箱子
+            TARGET: 3,     // 目标点
+            PLAYER: 4,     // 玩家
+            BOX_ON_TARGET: 5,  // 目标点上的箱子
+            PLAYER_ON_TARGET: 6 // 目标点上的玩家
+        };
+        
+        // 游戏资源 - 使用CSS颜色表示不同元素
+        const TILE_STYLES = {
+            [TILE_TYPES.FLOOR]: 'bg-gray-800',
+            [TILE_TYPES.WALL]: 'bg-gray-500',
+            [TILE_TYPES.BOX]: 'bg-yellow-500',
+            [TILE_TYPES.TARGET]: 'bg-blue-900/50 border-2 border-blue-500',
+            [TILE_TYPES.BOX_ON_TARGET]: 'bg-yellow-600 border-2 border-blue-500',
+            [TILE_TYPES.PLAYER]: 'bg-red-500',
+            [TILE_TYPES.PLAYER_ON_TARGET]: 'bg-red-600 border-2 border-blue-500'
+        };
+        
+        // 游戏关卡设计 - 修改了第三关和第五关
+        const LEVELS = [
+            // 第1关 - 入门级
+            {
+                map: [
+                    [1, 1, 1, 1, 1, 1, 1],
+                    [1, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 2, 3, 0, 1],
+                    [1, 0, 0, 1, 0, 0, 1],
+                    [1, 0, 4, 0, 2, 3, 1],
+                    [1, 0, 0, 0, 1, 0, 1],
+                    [1, 0, 0, 2, 3, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1]
+                ],
+                playerStart: { x: 2, y: 4 }
+            },
+            // 第2关 - 初级
+            {
+                map: [
+                    [1, 1, 1, 1, 1, 1, 1, 1],
+                    [1, 0, 0, 0, 1, 0, 0, 1],
+                    [1, 0, 0, 0, 1, 0, 3, 1],
+                    [1, 0, 0, 2, 0, 0, 0, 1],
+                    [1, 1, 0, 1, 1, 1, 0, 1],
+                    [1, 3, 2, 0, 4, 0, 0, 1],
+                    [1, 3, 0, 0, 1, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1]
+                ],
+                playerStart: { x: 4, y: 5 }
+            },
+            // 第3关 - 中级（修改后）
+            {
+                map: [
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+                    [1, 0, 0, 2, 1, 0, 1, 0, 2, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 2, 1, 1, 1, 0, 2, 0, 1],
+                    [1, 1, 0, 0, 0, 4, 0, 0, 0, 1, 1],
+                    [1, 3, 3, 0, 1, 0, 1, 0, 3, 3, 1],
+                    [1, 3, 3, 0, 1, 0, 1, 0, 3, 3, 1],
+                    [1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                ],
+                playerStart: { x: 5, y: 5 }
+            },
+            // 第4关 - 高级
+            {
+                map: [
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 1, 1, 1, 0, 0, 1],
+                    [1, 0, 0, 2, 0, 2, 0, 0, 0, 1],
+                    [1, 0, 1, 0, 1, 2, 1, 0, 1, 1],
+                    [1, 0, 3, 0, 2, 4, 0, 0, 3, 1],
+                    [1, 0, 3, 0, 1, 0, 1, 0, 3, 1],
+                    [1, 0, 3, 0, 0, 0, 0, 0, 3, 1],
+                    [1, 0, 0, 0, 1, 1, 1, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                ],
+                playerStart: { x: 5, y: 5 }
+            },
+            // 第5关 - 挑战级（修改后）
+            {
+                map: [
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1],
+                    [1, 0, 1, 3, 3, 3, 0, 3, 3, 3, 3, 1, 0, 1, 1],
+                    [1, 0, 1, 3, 3, 3, 0, 3, 3, 3, 3, 1, 0, 1, 1],
+                    [1, 0, 1, 3, 3, 3, 0, 1, 3, 3, 1, 1, 0, 1, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+                    [1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1],
+                    [1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                    [1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+                    [1, 0, 1, 2, 0, 2, 0, 2, 0, 2, 0, 1, 2, 0, 1],
+                    [1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 1],
+                    [1, 0, 1, 2, 0, 2, 0, 2, 0, 2, 0, 0, 2, 0, 1],
+                    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                ],
+                playerStart: { x: 7, y: 8 }
+            }
+        ];
+        
+        // 游戏状态
+        let gameState = {
+            currentLevel: 0,
+            map: [],
+            playerPosition: { x: 0, y: 0 },
+            moves: 0,
+            isCompleted: false
+        };
+        
+        // DOM 元素
+        const gameBoard = document.getElementById('game-board');
+        const levelDisplay = document.getElementById('level-display');
+        const movesDisplay = document.getElementById('moves-display');
+        const statusDisplay = document.getElementById('status-display');
+        const totalLevelsDisplay = document.getElementById('total-levels');
+        const winModal = document.getElementById('win-modal');
+        const winLevelDisplay = document.getElementById('win-level');
+        const winMovesDisplay = document.getElementById('win-moves');
+        
+        // 按钮元素
+        const btnUp = document.getElementById('btn-up');
+        const btnDown = document.getElementById('btn-down');
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const btnNextLevel = document.getElementById('btn-next-level');
+        
+        // 初始化游戏
+        function initGame() {
+            totalLevelsDisplay.textContent = LEVELS.length;
+            loadLevel(gameState.currentLevel);
+            setupEventListeners();
+        }
+        
+        // 加载指定关卡
+        function loadLevel(levelIndex) {
+            if (levelIndex < 0 || levelIndex >= LEVELS.length) return;
+            
+            gameState.currentLevel = levelIndex;
+            gameState.map = JSON.parse(JSON.stringify(LEVELS[levelIndex].map));
+            gameState.playerPosition = { ...LEVELS[levelIndex].playerStart };
+            gameState.moves = 0;
+            gameState.isCompleted = false;
+            
+            // 更新UI显示
+            levelDisplay.textContent = levelIndex + 1;
+            movesDisplay.textContent = '0';
+            statusDisplay.textContent = '进行中';
+            
+            // 更新按钮状态
+            btnPrev.disabled = levelIndex === 0;
+            btnNext.disabled = levelIndex === LEVELS.length - 1;
+            
+            // 渲染游戏
+            renderGame();
+        }
+        
+        // 渲染游戏界面
+        function renderGame() {
+            // 清空游戏板
+            gameBoard.innerHTML = '';
+            
+            // 设置游戏板大小
+            const rows = gameState.map.length;
+            const cols = gameState.map[0].length;
+            
+            gameBoard.style.width = `${cols * TILE_SIZE}px`;
+            gameBoard.style.height = `${rows * TILE_SIZE}px`;
+            
+            // 渲染每个格子
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const tile = document.createElement('div');
+                    tile.className = `absolute pixel-art transition-all duration-100 ease-out`;
+                    tile.style.width = `${TILE_SIZE}px`;
+                    tile.style.height = `${TILE_SIZE}px`;
+                    tile.style.left = `${x * TILE_SIZE}px`;
+                    tile.style.top = `${y * TILE_SIZE}px`;
+                    
+                    // 设置格子样式
+                    const tileType = gameState.map[y][x];
+                    tile.classList.add(...TILE_STYLES[tileType].split(' '));
+                    
+                    // 特殊样式 - 玩家
+                    if (tileType === TILE_TYPES.PLAYER || tileType === TILE_TYPES.PLAYER_ON_TARGET) {
+                        tile.classList.add('rounded-full');
+                        // 添加玩家指示
+                        const playerIndicator = document.createElement('div');
+                        playerIndicator.className = 'w-2 h-2 bg-black rounded-full absolute top-1 left-1/2 transform -translate-x-1/2';
+                        tile.appendChild(playerIndicator);
+                    }
+                    
+                    // 特殊样式 - 箱子
+                    if (tileType === TILE_TYPES.BOX || tileType === TILE_TYPES.BOX_ON_TARGET) {
+                        tile.classList.add('rounded-sm');
+                    }
+                    
+                    gameBoard.appendChild(tile);
+                }
+            }
+        }
+        
+        // 移动玩家
+        function movePlayer(dx, dy) {
+            if (gameState.isCompleted) return;
+            
+            const { x, y } = gameState.playerPosition;
+            const newX = x + dx;
+            const newY = y + dy;
+            
+            // 检查新位置是否在地图范围内
+            if (newY < 0 || newY >= gameState.map.length || newX < 0 || newX >= gameState.map[0].length) {
+                return false;
+            }
+            
+            const currentTile = gameState.map[y][x];
+            const newTile = gameState.map[newY][newX];
+            
+            // 检查是否是墙
+            if (newTile === TILE_TYPES.WALL) {
+                return false;
+            }
+            
+            // 检查是否是箱子
+            if (newTile === TILE_TYPES.BOX || newTile === TILE_TYPES.BOX_ON_TARGET) {
+                // 计算箱子的新位置
+                const boxNewX = newX + dx;
+                const boxNewY = newY + dy;
+                
+                // 检查箱子的新位置是否有效
+                if (boxNewY < 0 || boxNewY >= gameState.map.length || boxNewX < 0 || boxNewX >= gameState.map[0].length) {
+                    return false;
+                }
+                
+                const boxNewTile = gameState.map[boxNewY][boxNewX];
+                
+                // 箱子可以移动到空地或目标点
+                if (boxNewTile === TILE_TYPES.FLOOR || boxNewTile === TILE_TYPES.TARGET) {
+                    // 移动箱子
+                    gameState.map[boxNewY][boxNewX] = boxNewTile === TILE_TYPES.FLOOR 
+                        ? TILE_TYPES.BOX 
+                        : TILE_TYPES.BOX_ON_TARGET;
+                } else {
+                    // 箱子不能移动
+                    return false;
+                }
+            }
+            
+            // 更新玩家位置
+            // 重置当前位置
+            gameState.map[y][x] = currentTile === TILE_TYPES.PLAYER 
+                ? TILE_TYPES.FLOOR 
+                : TILE_TYPES.TARGET;
+            
+            // 设置新位置
+            gameState.map[newY][newX] = newTile === TILE_TYPES.TARGET || newTile === TILE_TYPES.BOX_ON_TARGET
+                ? TILE_TYPES.PLAYER_ON_TARGET
+                : TILE_TYPES.PLAYER;
+            
+            // 更新玩家坐标
+            gameState.playerPosition = { x: newX, y: newY };
+            
+            // 增加步数
+            gameState.moves++;
+            movesDisplay.textContent = gameState.moves;
+            
+            // 检查是否完成关卡
+            checkLevelCompletion();
+            
+            // 重新渲染
+            renderGame();
+            
+            return true;
+        }
+        
+        // 检查关卡是否完成
+        function checkLevelCompletion() {
+            // 检查所有箱子是否都在目标点上
+            for (let y = 0; y < gameState.map.length; y++) {
+                for (let x = 0; x < gameState.map[y].length; x++) {
+                    // 如果还有箱子不在目标点上，关卡未完成
+                    if (gameState.map[y][x] === TILE_TYPES.BOX) {
+                        return false;
+                    }
+                }
+            }
+            
+            // 关卡完成
+            gameState.isCompleted = true;
+            statusDisplay.textContent = '已完成';
+            
+            // 显示胜利弹窗
+            winLevelDisplay.textContent = gameState.currentLevel + 1;
+            winMovesDisplay.textContent = gameState.moves;
+            winModal.classList.remove('hidden');
+            
+            // 添加动画效果
+            const modalContent = winModal.querySelector('div');
+            modalContent.classList.add('scale-110');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-110');
+            }, 200);
+            
+            // 如果是最后一关，修改弹窗按钮文本
+            if (gameState.currentLevel === LEVELS.length - 1) {
+                btnNextLevel.innerHTML = '重新开始 <i class="fa fa-refresh ml-1"></i>';
+            } else {
+                btnNextLevel.innerHTML = '下一关 <i class="fa fa-arrow-right ml-1"></i>';
+            }
+            
+            return true;
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 按钮控制
+            btnUp.addEventListener('click', () => movePlayer(0, -1));
+            btnDown.addEventListener('click', () => movePlayer(0, 1));
+            btnLeft.addEventListener('click', () => movePlayer(-1, 0));
+            btnRight.addEventListener('click', () => movePlayer(1, 0));
+            
+            // 重置关卡
+            btnRestart.addEventListener('click', () => {
+                loadLevel(gameState.currentLevel);
+            });
+            
+            // 上一关/下一关
+            btnPrev.addEventListener('click', () => {
+                if (gameState.currentLevel > 0) {
+                    loadLevel(gameState.currentLevel - 1);
+                }
+            });
+            
+            btnNext.addEventListener('click', () => {
+                if (gameState.currentLevel < LEVELS.length - 1) {
+                    loadLevel(gameState.currentLevel + 1);
+                }
+            });
+            
+            // 胜利弹窗中的下一关按钮
+            btnNextLevel.addEventListener('click', () => {
+                winModal.classList.add('hidden');
+                if (gameState.currentLevel < LEVELS.length - 1) {
+                    loadLevel(gameState.currentLevel + 1);
+                } else {
+                    // 如果是最后一关，重置到第一关
+                    loadLevel(0);
+                }
+            });
+            
+            // 键盘控制
+            document.addEventListener('keydown', (e) => {
+                switch (e.keyCode) {
+                    case KEY_CODES.UP:
+                    case KEY_CODES.W:
+                        movePlayer(0, -1);
+                        e.preventDefault();
+                        break;
+                    case KEY_CODES.DOWN:
+                    case KEY_CODES.S:
+                        movePlayer(0, 1);
+                        e.preventDefault();
+                        break;
+                    case KEY_CODES.LEFT:
+                    case KEY_CODES.A:
+                        movePlayer(-1, 0);
+                        e.preventDefault();
+                        break;
+                    case KEY_CODES.RIGHT:
+                    case KEY_CODES.D:
+                        movePlayer(1, 0);
+                        e.preventDefault();
+                        break;
+                }
+            });
+            
+            // 触摸滑动控制
+            let touchStartX = 0;
+            let touchStartY = 0;
+            
+            gameBoard.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }, false);
+            
+            gameBoard.addEventListener('touchmove', (e) => {
+                e.preventDefault(); // 防止滚动
+            }, false);
+            
+            gameBoard.addEventListener('touchend', (e) => {
+                if (!touchStartX || !touchStartY) return;
+                
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                
+                const diffX = touchEndX - touchStartX;
+                const diffY = touchEndY - touchStartY;
+                
+                // 确定滑动方向（优先水平或垂直）
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    // 水平滑动
+                    if (diffX > 50) {
+                        movePlayer(1, 0); // 右
+                    } else if (diffX < -50) {
+                        movePlayer(-1, 0); // 左
+                    }
+                } else {
+                    // 垂直滑动
+                    if (diffY > 50) {
+                        movePlayer(0, 1); // 下
+                    } else if (diffY < -50) {
+                        movePlayer(0, -1); // 上
+                    }
+                }
+                
+                // 重置触摸起点
+                touchStartX = 0;
+                touchStartY = 0;
+            }, false);
+        }
+        
+        // 启动游戏
+        window.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+</html>
+    
