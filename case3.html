@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坦克大战</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        tank: {
+                            player: '#3B82F6',
+                            enemy: '#EF4444',
+                            bullet: '#FBBF24',
+                            brick: '#D97706',
+                            steel: '#9CA3AF',
+                            base: '#8B5CF6',
+                            bg: '#1F2937',
+                            ui: '#111827'
+                        }
+                    },
+                    fontFamily: {
+                        game: ['"Press Start 2P"', 'monospace', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .pixel-art {
+                image-rendering: pixelated;
+                image-rendering: crisp-edges;
+            }
+            .game-shadow {
+                box-shadow: 0 0 0 2px rgba(0,0,0,0.5),
+                            0 10px 25px -5px rgba(0,0,0,0.3);
+            }
+            .control-btn {
+                @apply w-full aspect-square rounded-full flex items-center justify-center 
+                       active:scale-95 transition-transform duration-100 
+                       text-white shadow-lg;
+            }
+            .menu-btn {
+                @apply px-6 py-3 rounded-lg game-shadow transition-all duration-200 
+                       font-game text-lg mb-4 w-64 text-center transform hover:scale-105;
+            }
+            .menu-btn-primary {
+                @apply menu-btn bg-tank-player hover:bg-blue-600 text-white;
+            }
+            .menu-btn-secondary {
+                @apply menu-btn bg-tank-enemy hover:bg-red-600 text-white;
+            }
+            .menu-btn-tertiary {
+                @apply menu-btn bg-gray-600 hover:bg-gray-500 text-white;
+            }
+        }
+    </style>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        /* 爆炸动画 */
+        @keyframes explode {
+            0% { transform: scale(0.3); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        
+        .explosion {
+            animation: explode 0.5s forwards;
+        }
+        
+        /* 闪烁效果（用于基地警告） */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        .blinking {
+            animation: blink 0.5s infinite;
+        }
+        
+        /* 关卡过渡动画 */
+        @keyframes levelTransition {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .level-transition {
+            animation: levelTransition 1s forwards;
+        }
+        
+        /* 菜单过渡动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .menu-screen {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        .menu-btn {
+            opacity: 0;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        .menu-btn:nth-child(2) { animation-delay: 0.1s; }
+        .menu-btn:nth-child(3) { animation-delay: 0.2s; }
+        .menu-btn:nth-child(4) { animation-delay: 0.3s; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 to-tank-bg min-h-screen text-white font-game overflow-x-hidden">
+    <div class="container mx-auto px-4 py-6 max-w-6xl">
+        <!-- 游戏标题和状态 -->
+        <header class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 bg-tank-player rounded-md flex items-center justify-center">
+                    <i class="fa fa-tank text-white text-xl"></i>
+                </div>
+                <h1 class="text-[clamp(1.5rem,4vw,2.5rem)]">坦克大战</h1>
+            </div>
+            
+            <div class="flex gap-4 items-center">
+                <!-- 生命计数 -->
+                <div class="bg-tank-ui px-4 py-2 rounded-lg game-shadow">
+                    <i class="fa fa-heart text-tank-enemy mr-2"></i>
+                    <span id="lives">3</span>
+                </div>
+                
+                <!-- 分数 -->
+                <div class="bg-tank-ui px-4 py-2 rounded-lg game-shadow">
+                    <i class="fa fa-star text-tank-bullet mr-2"></i>
+                    <span id="score">0</span>
+                </div>
+                
+                <!-- 关卡 -->
+                <div class="bg-tank-ui px-4 py-2 rounded-lg game-shadow">
+                    <i class="fa fa-signal text-tank-player mr-2"></i>
+                    <span id="level">1</span>
+                </div>
+                
+                <!-- 控制按钮 -->
+                <div class="flex gap-2">
+                    <button id="pauseBtn" class="bg-tank-ui p-2 rounded-lg game-shadow hover:bg-gray-700 transition-colors">
+                        <i class="fa fa-pause"></i>
+                    </button>
+                    <button id="soundBtn" class="bg-tank-ui p-2 rounded-lg game-shadow hover:bg-gray-700 transition-colors">
+                        <i class="fa fa-volume-up"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- 游戏主区域 -->
+        <div class="relative flex flex-col md:flex-row gap-6">
+            <!-- 游戏画布 -->
+            <div class="relative flex-1">
+                <canvas id="gameCanvas" class="w-full max-w-2xl mx-auto bg-tank-bg rounded-lg game-shadow pixel-art"></canvas>
+                
+                <!-- 游戏开始屏幕 -->
+                <div id="startScreen" class="absolute inset-0 bg-tank-ui/90 flex flex-col items-center justify-center gap-8 z-10 rounded-lg menu-screen">
+                    <h2 class="text-3xl text-center">坦克大战</h2>
+                    <p class="text-gray-300 text-center px-4">保护基地，摧毁所有敌方坦克</p>
+                    <button id="startBtn" class="menu-btn-primary">
+                        开始游戏
+                    </button>
+                    <div class="text-sm text-gray-400">
+                        <p>方向键: 移动坦克</p>
+                        <p>空格键: 发射子弹</p>
+                        <p>P键: 暂停游戏</p>
+                    </div>
+                </div>
+                
+                <!-- 暂停屏幕 - 优化的重新开始选项 -->
+                <div id="pauseScreen" class="absolute inset-0 bg-tank-ui/90 flex flex-col items-center justify-center gap-6 z-10 rounded-lg hidden menu-screen">
+                    <h2 class="text-3xl">游戏暂停</h2>
+                    <button id="resumeBtn" class="menu-btn-primary">
+                        <i class="fa fa-play mr-2"></i>继续游戏
+                    </button>
+                    <button id="restartLevelBtn" class="menu-btn-secondary">
+                        <i class="fa fa-refresh mr-2"></i>重新开始当前关卡
+                    </button>
+                    <button id="restartGameBtn" class="menu-btn-tertiary">
+                        <i class="fa fa-home mr-2"></i>重新开始游戏
+                    </button>
+                </div>
+                
+                <!-- 游戏结束屏幕 -->
+                <div id="gameOverScreen" class="absolute inset-0 bg-tank-ui/90 flex flex-col items-center justify-center gap-6 z-10 rounded-lg hidden menu-screen">
+                    <h2 class="text-3xl text-tank-enemy">游戏结束</h2>
+                    <p class="text-xl">最终得分: <span id="finalScore">0</span></p>
+                    <p class="text-xl">关卡: <span id="finalLevel">1</span></p>
+                    <button id="restartFromOverBtn" class="menu-btn-primary">
+                        <i class="fa fa-refresh mr-2"></i>重新开始游戏
+                    </button>
+                </div>
+                
+                <!-- 关卡过渡屏幕 -->
+                <div id="levelScreen" class="absolute inset-0 bg-tank-ui/90 flex flex-col items-center justify-center gap-6 z-10 rounded-lg hidden">
+                    <h2 class="text-4xl level-transition">关卡 <span id="nextLevel">2</span></h2>
+                    <p class="text-gray-300">准备战斗!</p>
+                </div>
+            </div>
+            
+            <!-- 移动设备控制器 (仅在小屏幕显示) -->
+            <div id="mobileControls" class="md:hidden grid grid-cols-3 grid-rows-3 gap-2 w-full max-w-xs mx-auto">
+                <div class="col-start-2">
+                    <button id="btnUp" class="control-btn bg-gray-700/80">
+                        <i class="fa fa-arrow-up"></i>
+                    </button>
+                </div>
+                <div class="col-start-1 row-start-2">
+                    <button id="btnLeft" class="control-btn bg-gray-700/80">
+                        <i class="fa fa-arrow-left"></i>
+                    </button>
+                </div>
+                <div class="col-start-2 row-start-2">
+                    <button id="btnDown" class="control-btn bg-gray-700/80">
+                        <i class="fa fa-arrow-down"></i>
+                    </button>
+                </div>
+                <div class="col-start-3 row-start-2">
+                    <button id="btnRight" class="control-btn bg-gray-700/80">
+                        <i class="fa fa-arrow-right"></i>
+                    </button>
+                </div>
+                <div class="col-start-3 row-start-3">
+                    <button id="btnFire" class="control-btn bg-tank-enemy/80">
+                        <i class="fa fa-crosshairs"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 游戏说明 (仅在大屏幕显示) -->
+            <div class="hidden md:block w-64 bg-tank-ui p-4 rounded-lg game-shadow">
+                <h3 class="text-lg mb-4 border-b border-gray-700 pb-2">游戏说明</h3>
+                <ul class="text-sm text-gray-300 space-y-3">
+                    <li class="flex items-start">
+                        <i class="fa fa-tank text-tank-player mt-1 mr-2"></i>
+                        <span>控制你的坦克摧毁所有敌方坦克</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa fa-shield text-tank-base mt-1 mr-2"></i>
+                        <span>保护基地不被敌方摧毁</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa fa-square text-tank-brick mt-1 mr-2"></i>
+                        <span>砖块可以被炮弹摧毁</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa fa-cube text-tank-steel mt-1 mr-2"></i>
+                        <span>钢铁无法被炮弹摧毁</span>
+                    </li>
+                </ul>
+                
+                <h3 class="text-lg mt-6 mb-4 border-b border-gray-700 pb-2">控制方式</h3>
+                <ul class="text-sm text-gray-300 space-y-2">
+                    <li><i class="fa fa-arrow-up mr-2"></i> 向上移动</li>
+                    <li><i class="fa fa-arrow-down mr-2"></i> 向下移动</li>
+                    <li><i class="fa fa-arrow-left mr-2"></i> 向左移动</li>
+                    <li><i class="fa fa-arrow-right mr-2"></i> 向右移动</li>
+                    <li><i class="fa fa-space-shuttle mr-2"></i> 空格键: 发射</li>
+                    <li><i class="fa fa-pause mr-2"></i> P键: 暂停游戏</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 获取画布和上下文
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 游戏UI元素
+            const startScreen = document.getElementById('startScreen');
+            const pauseScreen = document.getElementById('pauseScreen');
+            const gameOverScreen = document.getElementById('gameOverScreen');
+            const levelScreen = document.getElementById('levelScreen');
+            const startBtn = document.getElementById('startBtn');
+            const resumeBtn = document.getElementById('resumeBtn');
+            const restartLevelBtn = document.getElementById('restartLevelBtn');
+            const restartGameBtn = document.getElementById('restartGameBtn');
+            const restartFromOverBtn = document.getElementById('restartFromOverBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const soundBtn = document.getElementById('soundBtn');
+            const scoreElement = document.getElementById('score');
+            const livesElement = document.getElementById('lives');
+            const levelElement = document.getElementById('level');
+            const finalScoreElement = document.getElementById('finalScore');
+            const finalLevelElement = document.getElementById('finalLevel');
+            const nextLevelElement = document.getElementById('nextLevel');
+            
+            // 移动控制按钮
+            const btnUp = document.getElementById('btnUp');
+            const btnDown = document.getElementById('btnDown');
+            const btnLeft = document.getElementById('btnLeft');
+            const btnRight = document.getElementById('btnRight');
+            const btnFire = document.getElementById('btnFire');
+            
+            // 游戏配置
+            const TILE_SIZE = 32;
+            const MAP_WIDTH = 13;  // 地图宽度（方块数）
+            const MAP_HEIGHT = 13; // 地图高度（方块数）
+            const INITIAL_ENEMY_COUNT = 4;
+            const PLAYER_SPEED = 1.5;
+            const MOVE_STEP = 1; // 移动步长，用于分步碰撞检测
+            const ENEMY_SPEEDS = [
+                0.3,  // 普通坦克速度
+                0.6,  // 快速坦克速度
+                0.3   // 重型坦克速度
+            ];
+            
+            // 用于闪烁效果的计时器
+            let blinkTimer = 0;
+            
+            // 设置画布尺寸
+            function resizeCanvas() {
+                canvas.width = TILE_SIZE * MAP_WIDTH;
+                canvas.height = TILE_SIZE * MAP_HEIGHT;
+                
+                // 确保在不同设备上正确显示
+                const container = canvas.parentElement;
+                canvas.style.maxWidth = '100%';
+                canvas.style.height = 'auto';
+            }
+            
+            // 初始化画布尺寸
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // 游戏状态
+            let gameState = {
+                isRunning: false,
+                isPaused: false,
+                score: 0,
+                lives: 3,
+                level: 1,
+                player: null,
+                enemies: [],
+                bullets: [],
+                explosions: [],
+                map: [],
+                base: { x: 0, y: 0 },
+                baseDestroyed: false,
+                enemyCount: 0,
+                enemySpawnTimer: 0,
+                soundEnabled: true,
+                blinkState: true,
+                controls: {
+                    up: false,
+                    down: false,
+                    left: false,
+                    right: false,
+                    fire: false
+                }
+            };
+            
+            // 地图元素类型
+            const TILE_TYPES = {
+                EMPTY: 0,
+                BRICK: 1,
+                STEEL: 2,
+                BASE: 5
+            };
+            
+            // 坦克类型
+            const TANK_TYPES = {
+                PLAYER: 'player',
+                ENEMY: 'enemy'
+            };
+            
+            // 创建玩家坦克
+            function createPlayer() {
+                return {
+                    x: TILE_SIZE * 6,    // 初始X位置（地图中心下方）
+                    y: TILE_SIZE * 11,   // 初始Y位置
+                    width: TILE_SIZE * 0.8,
+                    height: TILE_SIZE * 0.8,
+                    speed: PLAYER_SPEED,
+                    direction: 'up',
+                    type: TANK_TYPES.PLAYER,
+                    color: 'tank-player',
+                    lastShot: 0,
+                    shotCooldown: 500,   // 射击冷却时间（毫秒）
+                    isInvulnerable: false,
+                    invulnerabilityTimer: 0,
+                    blinkState: true,
+                    blinkTimer: 0
+                };
+            }
+            
+            // 创建敌方坦克
+            function createEnemy() {
+                // 敌方坦克随机从顶部三个位置出现
+                const spawnPositions = [
+                    { x: TILE_SIZE * 1, y: TILE_SIZE * 1 },
+                    { x: TILE_SIZE * 6, y: TILE_SIZE * 1 },
+                    { x: TILE_SIZE * 11, y: TILE_SIZE * 1 }
+                ];
+                const pos = spawnPositions[Math.floor(Math.random() * spawnPositions.length)];
+                
+                // 随机敌方坦克类型
+                const enemyTypes = [
+                    { speed: ENEMY_SPEEDS[0], score: 100 },   // 普通坦克
+                    { speed: ENEMY_SPEEDS[1], score: 200 },   // 快速坦克
+                    { speed: ENEMY_SPEEDS[2], score: 300 }    // 重型坦克
+                ];
+                const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+                
+                return {
+                    x: pos.x,
+                    y: pos.y,
+                    width: TILE_SIZE * 0.8,
+                    height: TILE_SIZE * 0.8,
+                    speed: enemyType.speed,
+                    direction: 'down',
+                    type: TANK_TYPES.ENEMY,
+                    color: 'tank-enemy',
+                    lastShot: 0,
+                    shotCooldown: 2000 + Math.random() * 2000, // 随机射击间隔
+                    health: enemyType.score > 200 ? 2 : 1,     // 重型坦克有2点生命值
+                    score: enemyType.score,
+                    moveTimer: 0,
+                    moveInterval: 1000 + Math.random() * 1000,  // 随机改变方向的时间
+                    stuckCounter: 0, // 用于检测坦克是否被卡住
+                    stuckThreshold: 100 // 判定为卡住的阈值
+                };
+            }
+            
+            // 创建子弹
+            function createBullet(tank) {
+                // 根据坦克方向和位置计算子弹初始位置
+                let x, y;
+                const bulletSize = TILE_SIZE * 0.15;
+                
+                switch(tank.direction) {
+                    case 'up':
+                        x = tank.x + tank.width / 2 - bulletSize / 2;
+                        y = tank.y - bulletSize;
+                        break;
+                    case 'down':
+                        x = tank.x + tank.width / 2 - bulletSize / 2;
+                        y = tank.y + tank.height;
+                        break;
+                    case 'left':
+                        x = tank.x - bulletSize;
+                        y = tank.y + tank.height / 2 - bulletSize / 2;
+                        break;
+                    case 'right':
+                        x = tank.x + tank.width;
+                        y = tank.y + tank.height / 2 - bulletSize / 2;
+                        break;
+                }
+                
+                return {
+                    x: x,
+                    y: y,
+                    width: bulletSize,
+                    height: bulletSize,
+                    direction: tank.direction,
+                    speed: 4,
+                    owner: tank.type,
+                    color: 'tank-bullet'
+                };
+            }
+            
+            function createExplosion(x, y) {
+                return {
+                    x: x,
+                    y: y,
+                    size: TILE_SIZE * 0.5,
+                    maxSize: TILE_SIZE * 1.2,
+                    timer: 0,
+                    duration: 500 // 爆炸持续时间（毫秒）
+                };
+            }
+            
+            function initMap() {
+                // 创建空地图
+                const map = Array(MAP_HEIGHT).fill().map(() => Array(MAP_WIDTH).fill(TILE_TYPES.EMPTY));
+                
+                // 设置基地位置（地图底部中心）
+                const baseX = 6;
+                const baseY = 11;
+                gameState.base = { x: baseX * TILE_SIZE, y: baseY * TILE_SIZE };
+                map[baseY][baseX] = TILE_TYPES.BASE;
+                
+                // 绘制边界（四周钢铁）
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    map[0][x] = TILE_TYPES.STEEL;
+                    map[MAP_HEIGHT - 1][x] = TILE_TYPES.STEEL;
+                }
+                for (let y = 0; y < MAP_HEIGHT; y++) {
+                    map[y][0] = TILE_TYPES.STEEL;
+                    map[y][MAP_WIDTH - 1] = TILE_TYPES.STEEL;
+                }
+                
+                // 顶部三个开口（敌方坦克出生点）
+                map[0][1] = TILE_TYPES.EMPTY;
+                map[0][6] = TILE_TYPES.EMPTY;
+                map[0][11] = TILE_TYPES.EMPTY;
+                
+                // 生成障碍物
+                generateObstacles(map);
+                
+                return map;
+            }
+            
+            function generateObstacles(map) {
+                // 砖块数量
+                const brickCount = 50 + gameState.level * 8;
+                for (let i = 0; i < brickCount; i++) {
+                    let x, y;
+                    // 确保不会生成在基地和出生点
+                    do {
+                        x = Math.floor(Math.random() * (MAP_WIDTH - 2)) + 1;
+                        y = Math.floor(Math.random() * (MAP_HEIGHT - 2)) + 1;
+                    } while (
+                        (x === 6 && y === 11) || // 基地位置
+                        (y === 1 && (x === 1 || x === 6 || x === 11)) // 敌方出生点下方
+                    );
+                    
+                    map[y][x] = TILE_TYPES.BRICK;
+                }
+                
+                // 钢铁数量
+                const steelCount = 20 + gameState.level * 4;
+                for (let i = 0; i < steelCount; i++) {
+                    let x, y;
+                    do {
+                        x = Math.floor(Math.random() * (MAP_WIDTH - 2)) + 1;
+                        y = Math.floor(Math.random() * (MAP_HEIGHT - 2)) + 1;
+                    } while (
+                        map[y][x] !== TILE_TYPES.EMPTY ||
+                        (x === 6 && y === 11) // 基地位置
+                    );
+                    
+                    map[y][x] = TILE_TYPES.STEEL;
+                }
+            }
+            
+            // 初始化游戏 - 优化的重新开始逻辑
+            function initGame(options = {}) {
+                // 默认选项：重新开始游戏（重置所有进度）
+                const defaults = {
+                    restartLevel: false,  // 仅重新开始当前关卡
+                    keepProgress: false   // 保留关卡和分数
+                };
+                
+                const settings = { ...defaults, ...options };
+                
+                // 重置闪烁计时器
+                blinkTimer = 0;
+                
+                // 根据设置决定保留哪些进度
+                const currentLevel = settings.keepProgress || settings.restartLevel 
+                    ? gameState.level 
+                    : 1;
+                    
+                const currentScore = settings.keepProgress || settings.restartLevel
+                    ? gameState.score 
+                    : 0;
+                    
+                const currentLives = settings.restartLevel 
+                    ? gameState.lives  // 重新开始关卡保留生命
+                    : (settings.keepProgress ? gameState.lives : 3);
+                
+                gameState = {
+                    ...gameState,
+                    isRunning: true,
+                    isPaused: false,
+                    map: initMap(),
+                    player: createPlayer(),
+                    enemies: [],
+                    bullets: [],
+                    explosions: [],
+                    baseDestroyed: false,
+                    enemyCount: 0,
+                    enemySpawnTimer: 0,
+                    blinkState: true,
+                    level: currentLevel,
+                    score: currentScore,
+                    lives: currentLives
+                };
+                
+                // 更新UI显示
+                levelElement.textContent = gameState.level;
+                scoreElement.textContent = gameState.score;
+                livesElement.textContent = gameState.lives;
+                
+                // 生成初始敌方坦克
+                spawnEnemies(INITIAL_ENEMY_COUNT + Math.floor(gameState.level / 2));
+                
+                // 隐藏所有屏幕
+                startScreen.classList.add('hidden');
+                pauseScreen.classList.add('hidden');
+                gameOverScreen.classList.add('hidden');
+                levelScreen.classList.add('hidden');
+                
+                // 播放重新开始音效
+                playSound('restart');
+                
+                // 开始游戏循环
+                requestAnimationFrame(gameLoop);
+            }
+            
+            function spawnEnemies(count) {
+                for (let i = 0; i < count; i++) {
+                    // 延迟生成，避免所有坦克同时出现
+                    setTimeout(() => {
+                        if (gameState.isRunning && !gameState.isPaused && 
+                            gameState.enemies.length < 5 + Math.floor(gameState.level / 3)) {
+                            gameState.enemies.push(createEnemy());
+                            gameState.enemyCount++;
+                        }
+                    }, i * 1000);
+                }
+            }
+            
+            function nextLevel() {
+                gameState.level++;
+                levelElement.textContent = gameState.level;
+                
+                // 显示关卡过渡屏幕
+                nextLevelElement.textContent = gameState.level;
+                levelScreen.classList.remove('hidden');
+                
+                // 3秒后开始下一关，保留分数和生命
+                setTimeout(() => {
+                    levelScreen.classList.add('hidden');
+                    initGame({ restartLevel: true });
+                }, 3000);
+            }
+            
+            function gameOver() {
+                gameState.isRunning = false;
+                finalScoreElement.textContent = gameState.score;
+                finalLevelElement.textContent = gameState.level;
+                gameOverScreen.classList.remove('hidden');
+                playSound('game-over');
+            }
+            
+            function playerDeath() {
+                // 创建爆炸效果
+                gameState.explosions.push(createExplosion(
+                    gameState.player.x + gameState.player.width / 2,
+                    gameState.player.y + gameState.player.height / 2
+                ));
+                
+                gameState.lives--;
+                livesElement.textContent = gameState.lives;
+                
+                if (gameState.lives <= 0) {
+                    gameOver();
+                    return;
+                }
+                
+                // 重生玩家，带有短暂无敌状态
+                gameState.player = createPlayer();
+                gameState.player.isInvulnerable = true;
+                gameState.player.invulnerabilityTimer = 3000; // 3秒无敌
+                playSound('respawn');
+            }
+            
+            function drawMap() {
+                for (let y = 0; y < MAP_HEIGHT; y++) {
+                    for (let x = 0; x < MAP_WIDTH; x++) {
+                        const tileType = gameState.map[y][x];
+                        const drawX = x * TILE_SIZE;
+                        const drawY = y * TILE_SIZE;
+                        
+                        // 根据方块类型绘制不同的样式
+                        switch(tileType) {
+                            case TILE_TYPES.BRICK:
+                                drawBrick(drawX, drawY);
+                                break;
+                            case TILE_TYPES.STEEL:
+                                drawSteel(drawX, drawY);
+                                break;
+                            case TILE_TYPES.BASE:
+                                drawBase(drawX, drawY);
+                                break;
+                        }
+                    }
+                }
+            }
+            
+            function drawBrick(x, y) {
+                ctx.fillStyle = '#D97706';
+                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                
+                // 砖块纹理
+                ctx.fillStyle = '#B45309';
+                ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                ctx.fillStyle = '#FBBF24';
+                ctx.fillRect(x + 8, y + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+            }
+            
+            function drawSteel(x, y) {
+                ctx.fillStyle = '#9CA3AF';
+                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                
+                // 钢铁纹理
+                ctx.fillStyle = '#6B7280';
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        if ((i + j) % 2 === 0) {
+                            ctx.fillRect(
+                                x + i * (TILE_SIZE / 4), 
+                                y + j * (TILE_SIZE / 4), 
+                                TILE_SIZE / 4, 
+                                TILE_SIZE / 4
+                            );
+                        }
+                    }
+                }
+            }
+            
+            function drawBase(x, y) {
+                ctx.fillStyle = '#8B5CF6';
+                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                
+                // 基地标志
+                ctx.fillStyle = '#C084FC';
+                ctx.beginPath();
+                ctx.moveTo(x + TILE_SIZE / 2, y + 4);
+                ctx.lineTo(x + TILE_SIZE - 4, y + TILE_SIZE - 4);
+                ctx.lineTo(x + 4, y + TILE_SIZE - 4);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 基地中心
+                ctx.fillStyle = '#F472B6';
+                ctx.beginPath();
+                ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 如果基地处于危险状态，添加闪烁效果
+                if (gameState.enemies.length > 0 && !gameState.baseDestroyed) {
+                    ctx.fillStyle = gameState.blinkState ? 'rgba(255, 0, 0, 0.3)' : 'rgba(255, 0, 0, 0)';
+                    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                }
+            }
+            
+            function drawTank(tank) {
+                // 如果是无敌状态的玩家坦克，闪烁显示
+                if (tank.isInvulnerable && tank.blinkState) {
+                    return;
+                }
+                
+                ctx.save();
+                ctx.translate(tank.x + tank.width / 2, tank.y + tank.height / 2);
+                
+                // 根据方向旋转
+                switch(tank.direction) {
+                    case 'up':
+                        ctx.rotate(0);
+                        break;
+                    case 'right':
+                        ctx.rotate(Math.PI / 2);
+                        break;
+                    case 'down':
+                        ctx.rotate(Math.PI);
+                        break;
+                    case 'left':
+                        ctx.rotate(3 * Math.PI / 2);
+                        break;
+                }
+                
+                // 获取坦克颜色
+                const color = getComputedStyle(document.documentElement).getPropertyValue(`--color-${tank.color}`) || 
+                              document.querySelector(`.${tank.color}`).style.color;
+                
+                // 绘制坦克主体
+                ctx.fillStyle = color;
+                ctx.fillRect(-tank.width / 2, -tank.height / 2, tank.width, tank.height);
+                
+                // 坦克履带
+                ctx.fillStyle = '#1F2937';
+                ctx.fillRect(-tank.width / 2, -tank.height / 2, 4, tank.height);
+                ctx.fillRect(tank.width / 2 - 4, -tank.height / 2, 4, tank.height);
+                
+                // 坦克炮塔
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(0, 0, tank.width / 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 坦克炮管
+                ctx.fillStyle = '#1F2937';
+                ctx.fillRect(-2, -tank.height / 2, 4, -tank.height / 4);
+                
+                ctx.restore();
+            }
+            
+            // 绘制子弹
+            function drawBullet(bullet) {
+                const color = getComputedStyle(document.documentElement).getPropertyValue(`--color-${bullet.color}`) || 
+                              document.querySelector(`.${bullet.color}`).style.color;
+                
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(
+                    bullet.x + bullet.width / 2, 
+                    bullet.y + bullet.height / 2, 
+                    bullet.width / 2, 
+                    0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+            
+            function drawExplosion(explosion) {
+                const progress = explosion.timer / explosion.duration;
+                const currentSize = explosion.size + (explosion.maxSize - explosion.size) * progress;
+                
+                // 爆炸外圈
+                ctx.fillStyle = `rgba(251, 146, 60, ${1 - progress})`;
+                ctx.beginPath();
+                ctx.arc(explosion.x, explosion.y, currentSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 爆炸内圈
+                ctx.fillStyle = `rgba(239, 68, 68, ${1 - progress})`;
+                ctx.beginPath();
+                ctx.arc(explosion.x, explosion.y, currentSize * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 爆炸中心
+                ctx.fillStyle = `rgba(251, 191, 36, ${1 - progress})`;
+                ctx.beginPath();
+                ctx.arc(explosion.x, explosion.y, currentSize * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            function checkCollision(rect1, rect2) {
+                return rect1.x < rect2.x + rect2.width &&
+                       rect1.x + rect1.width > rect2.x &&
+                       rect1.y < rect2.y + rect2.height &&
+                       rect1.y + rect1.height > rect2.y;
+            }
+            
+            // 改进的碰撞检测函数，检查坦克是否与地图障碍物碰撞
+            function checkMapCollision(tank) {
+                // 创建坦克的碰撞边界（稍微缩小一点，避免边缘碰撞问题）
+                const collisionBuffer = 2;
+                const collisionTank = {
+                    x: tank.x + collisionBuffer,
+                    y: tank.y + collisionBuffer,
+                    width: tank.width - collisionBuffer * 2,
+                    height: tank.height - collisionBuffer * 2
+                };
+                
+                // 计算坦克四个角落所在的格子
+                const corners = [
+                    {x: Math.floor(collisionTank.x / TILE_SIZE), y: Math.floor(collisionTank.y / TILE_SIZE)},
+                    {x: Math.floor((collisionTank.x + collisionTank.width) / TILE_SIZE), y: Math.floor(collisionTank.y / TILE_SIZE)},
+                    {x: Math.floor(collisionTank.x / TILE_SIZE), y: Math.floor((collisionTank.y + collisionTank.height) / TILE_SIZE)},
+                    {x: Math.floor((collisionTank.x + collisionTank.width) / TILE_SIZE), y: Math.floor((collisionTank.y + collisionTank.height) / TILE_SIZE)}
+                ];
+                
+                // 检查每个角落所在的格子是否是障碍物
+                for (const corner of corners) {
+                    if (corner.x < 0 || corner.x >= MAP_WIDTH || corner.y < 0 || corner.y >= MAP_HEIGHT) {
+                        return true; // 超出地图边界
+                    }
+                    
+                    const tileType = gameState.map[corner.y][corner.x];
+                    if (tileType === TILE_TYPES.BRICK || tileType === TILE_TYPES.STEEL) {
+                        return true; // 碰到障碍物
+                    }
+                }
+                
+                return false;
+            }
+            
+            // 检查坦克前方是否有障碍物（用于提前转向）
+            function checkForwardCollision(tank, distance = TILE_SIZE * 0.8) {
+                // 创建一个代表坦克前方区域的碰撞检测框
+                const forwardCheck = {
+                    x: tank.x,
+                    y: tank.y,
+                    width: tank.width,
+                    height: tank.height
+                };
+                
+                // 根据方向调整检测框位置
+                switch(tank.direction) {
+                    case 'up':
+                        forwardCheck.y -= distance;
+                        break;
+                    case 'down':
+                        forwardCheck.y += distance;
+                        break;
+                    case 'left':
+                        forwardCheck.x -= distance;
+                        break;
+                    case 'right':
+                        forwardCheck.x += distance;
+                        break;
+                }
+                
+                // 使用现有的地图碰撞检测
+                return checkMapCollision(forwardCheck);
+            }
+            
+            // 分步移动函数，防止坦克穿墙
+            function moveStepByStep(tank, desiredX, desiredY) {
+                const oldX = tank.x;
+                const oldY = tank.y;
+                
+                // 计算需要移动的总距离
+                const dx = desiredX - oldX;
+                const dy = desiredY - oldY;
+                const totalDistance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (totalDistance <= 0) return true;
+                
+                // 计算每一步的移动量
+                const steps = Math.ceil(totalDistance / MOVE_STEP);
+                const stepX = dx / steps;
+                const stepY = dy / steps;
+                
+                // 分步移动并检测碰撞
+                for (let i = 0; i < steps; i++) {
+                    tank.x += stepX;
+                    tank.y += stepY;
+                    
+                    if (checkMapCollision(tank)) {
+                        // 发生碰撞，回退一步并停止
+                        tank.x -= stepX;
+                        tank.y -= stepY;
+                        return false;
+                    }
+                }
+                
+                return true;
+            }
+            
+            function updatePlayer(deltaTime) {
+                const player = gameState.player;
+                let moved = false;
+                
+                // 处理无敌状态
+                if (player.isInvulnerable) {
+                    player.invulnerabilityTimer -= deltaTime;
+                    player.blinkTimer += deltaTime;
+                    
+                    // 每200ms切换一次闪烁状态
+                    if (player.blinkTimer > 200) {
+                        player.blinkState = !player.blinkState;
+                        player.blinkTimer = 0;
+                    }
+                    
+                    if (player.invulnerabilityTimer <= 0) {
+                        player.isInvulnerable = false;
+                        player.blinkState = true;
+                    }
+                }
+                
+                // 计算期望的新位置
+                let desiredX = player.x;
+                let desiredY = player.y;
+                
+                if (gameState.controls.up) {
+                    player.direction = 'up';
+                    desiredY -= player.speed;
+                    moved = true;
+                } else if (gameState.controls.down) {
+                    player.direction = 'down';
+                    desiredY += player.speed;
+                    moved = true;
+                } else if (gameState.controls.left) {
+                    player.direction = 'left';
+                    desiredX -= player.speed;
+                    moved = true;
+                } else if (gameState.controls.right) {
+                    player.direction = 'right';
+                    desiredX += player.speed;
+                    moved = true;
+                }
+                
+                // 使用分步移动防止穿墙
+                if (moved) {
+                    moved = moveStepByStep(player, desiredX, desiredY);
+                }
+                
+                // 限制在地图范围内
+                player.x = Math.max(0, Math.min(player.x, canvas.width - player.width));
+                player.y = Math.max(0, Math.min(player.y, canvas.height - player.height));
+                
+                // 处理射击
+                if (gameState.controls.fire && Date.now() - player.lastShot > player.shotCooldown) {
+                    gameState.bullets.push(createBullet(player));
+                    player.lastShot = Date.now();
+                    playSound('shoot');
+                    
+                    // 重置射击控制，防止持续射击
+                    gameState.controls.fire = false;
+                }
+                
+                return moved;
+            }
+            
+            function updateEnemies(deltaTime) {
+                gameState.enemySpawnTimer += deltaTime;
+                
+                // 定期生成新的敌方坦克
+                if (gameState.enemySpawnTimer > 10000 && 
+                    gameState.enemies.length < 5 + Math.floor(gameState.level / 3)) {
+                    gameState.enemies.push(createEnemy());
+                    gameState.enemyCount++;
+                    gameState.enemySpawnTimer = 0;
+                }
+                
+                // 更新每个敌方坦克
+                for (let i = gameState.enemies.length - 1; i >= 0; i--) {
+                    const enemy = gameState.enemies[i];
+                    const oldX = enemy.x;
+                    const oldY = enemy.y;
+                    
+                    // 检查前方是否有障碍物，如果有则提前转向
+                    if (checkForwardCollision(enemy)) {
+                        const directions = ['up', 'down', 'left', 'right'];
+                        // 排除当前方向，尝试其他方向
+                        const newDirections = directions.filter(dir => dir !== enemy.direction);
+                        enemy.direction = newDirections[Math.floor(Math.random() * newDirections.length)];
+                    }
+                    
+                    // 计算期望的新位置
+                    let desiredX = enemy.x;
+                    let desiredY = enemy.y;
+                    
+                    switch(enemy.direction) {
+                        case 'up':
+                            desiredY -= enemy.speed;
+                            break;
+                        case 'down':
+                            desiredY += enemy.speed;
+                            break;
+                        case 'left':
+                            desiredX -= enemy.speed;
+                            break;
+                        case 'right':
+                            desiredX += enemy.speed;
+                            break;
+                    }
+                    
+                    // 使用分步移动防止穿墙
+                    const moved = moveStepByStep(enemy, desiredX, desiredY);
+                    
+                    // 检测坦克是否被卡住
+                    if (!moved) {
+                        enemy.stuckCounter++;
+                        // 如果被卡住超过阈值，则强制改变方向
+                        if (enemy.stuckCounter > enemy.stuckThreshold) {
+                            const directions = ['up', 'down', 'left', 'right'];
+                            enemy.direction = directions[Math.floor(Math.random() * directions.length)];
+                            enemy.stuckCounter = 0; // 重置计数器
+                        }
+                    } else {
+                        enemy.stuckCounter = 0; // 成功移动，重置计数器
+                    }
+                    
+                    // 随机改变方向
+                    enemy.moveTimer += deltaTime;
+                    if (enemy.moveTimer > enemy.moveInterval) {
+                        const directions = ['up', 'down', 'left', 'right'];
+                        // 稍微倾向于向下移动
+                        if (Math.random() < 0.6) {
+                            enemy.direction = 'down';
+                        } else {
+                            enemy.direction = directions[Math.floor(Math.random() * directions.length)];
+                        }
+                        
+                        enemy.moveTimer = 0;
+                        enemy.moveInterval = 1000 + Math.random() * 1000;
+                    }
+                    
+                    // 限制在地图范围内
+                    enemy.x = Math.max(0, Math.min(enemy.x, canvas.width - enemy.width));
+                    enemy.y = Math.max(0, Math.min(enemy.y, canvas.height - enemy.height));
+                    
+                    // 敌方坦克射击
+                    if (Date.now() - enemy.lastShot > enemy.shotCooldown) {
+                        gameState.bullets.push(createBullet(enemy));
+                        enemy.lastShot = Date.now();
+                        enemy.shotCooldown = 2000 + Math.random() * 2000;
+                        playSound('shoot');
+                    }
+                }
+            }
+            
+            function updateBullets(deltaTime) {
+                for (let i = gameState.bullets.length - 1; i >= 0; i--) {
+                    const bullet = gameState.bullets[i];
+                    let bulletHit = false;
+                    
+                    // 移动子弹
+                    switch(bullet.direction) {
+                        case 'up':
+                            bullet.y -= bullet.speed;
+                            break;
+                        case 'down':
+                            bullet.y += bullet.speed;
+                            break;
+                        case 'left':
+                            bullet.x -= bullet.speed;
+                            break;
+                        case 'right':
+                            bullet.x += bullet.speed;
+                            break;
+                    }
+                    
+                    // 检查子弹是否超出地图范围
+                    if (bullet.x < 0 || bullet.x > canvas.width || 
+                        bullet.y < 0 || bullet.y > canvas.height) {
+                        gameState.bullets.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // 检查子弹与地图的碰撞
+                    const tileX = Math.floor(bullet.x / TILE_SIZE);
+                    const tileY = Math.floor(bullet.y / TILE_SIZE);
+                    
+                    if (tileX >= 0 && tileX < MAP_WIDTH && tileY >= 0 && tileY < MAP_HEIGHT) {
+                        const tileType = gameState.map[tileY][tileX];
+                        
+                        // 子弹击中砖块
+                        if (tileType === TILE_TYPES.BRICK) {
+                            gameState.map[tileY][tileX] = TILE_TYPES.EMPTY;
+                            gameState.bullets.splice(i, 1);
+                            gameState.explosions.push(createExplosion(bullet.x, bullet.y));
+                            playSound('explosion');
+                            bulletHit = true;
+                        }
+                        // 子弹击中钢铁（子弹消失但钢铁不消失）
+                        else if (tileType === TILE_TYPES.STEEL) {
+                            gameState.bullets.splice(i, 1);
+                            gameState.explosions.push(createExplosion(bullet.x, bullet.y));
+                            playSound('hit-steel');
+                            bulletHit = true;
+                        }
+                        // 子弹击中基地
+                        else if (tileType === TILE_TYPES.BASE && bullet.owner === TANK_TYPES.ENEMY) {
+                            gameState.map[tileY][tileX] = TILE_TYPES.EMPTY;
+                            gameState.baseDestroyed = true;
+                            gameState.bullets.splice(i, 1);
+                            gameState.explosions.push(createExplosion(bullet.x, bullet.y));
+                            playSound('base-destroyed');
+                            bulletHit = true;
+                            gameOver();
+                        }
+                    }
+                    
+                    if (bulletHit) continue;
+                    
+                    // 检查子弹与坦克的碰撞
+                    if (bullet.owner === TANK_TYPES.PLAYER) {
+                        // 玩家子弹击中敌方坦克
+                        for (let j = gameState.enemies.length - 1; j >= 0; j--) {
+                            const enemy = gameState.enemies[j];
+                            if (checkCollision(bullet, enemy)) {
+                                enemy.health--;
+                                
+                                // 如果敌方坦克生命值为0，则摧毁它
+                                if (enemy.health <= 0) {
+                                    // 创建爆炸效果
+                                    gameState.explosions.push(createExplosion(
+                                        enemy.x + enemy.width / 2,
+                                        enemy.y + enemy.height / 2
+                                    ));
+                                    
+                                    // 加分
+                                    gameState.score += enemy.score;
+                                    scoreElement.textContent = gameState.score;
+                                    
+                                    // 移除敌方坦克
+                                    gameState.enemies.splice(j, 1);
+                                    playSound('explosion');
+                                    
+                                    // 检查是否所有敌方坦克都被摧毁
+                                    if (gameState.enemies.length === 0 && 
+                                        gameState.enemyCount >= INITIAL_ENEMY_COUNT + Math.floor(gameState.level / 2)) {
+                                        setTimeout(nextLevel, 1000);
+                                    }
+                                } else {
+                                    // 坦克被击中但未被摧毁
+                                    playSound('hit-tank');
+                                }
+                                
+                                // 移除子弹
+                                gameState.bullets.splice(i, 1);
+                                bulletHit = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        // 敌方子弹击中玩家坦克（且玩家不处于无敌状态）
+                        if (gameState.player && !gameState.player.isInvulnerable && 
+                            checkCollision(bullet, gameState.player)) {
+                            // 移除子弹
+                            gameState.bullets.splice(i, 1);
+                            
+                            // 玩家坦克被击中
+                            playerDeath();
+                            playSound('explosion');
+                            bulletHit = true;
+                        }
+                    }
+                    
+                    if (bulletHit) continue;
+                }
+            }
+            
+            function updateExplosions(deltaTime) {
+                for (let i = gameState.explosions.length - 1; i >= 0; i--) {
+                    const explosion = gameState.explosions[i];
+                    explosion.timer += deltaTime;
+                    
+                    // 移除已完成的爆炸效果
+                    if (explosion.timer >= explosion.duration) {
+                        gameState.explosions.splice(i, 1);
+                    }
+                }
+            }
+            
+            function updateBlinkState(deltaTime) {
+                blinkTimer += deltaTime;
+                
+                if (blinkTimer > 500) {
+                    gameState.blinkState = !gameState.blinkState;
+                    blinkTimer = 0;
+                }
+            }
+            
+            let lastTimestamp = 0;
+            function gameLoop(timestamp) {
+                if (!gameState.isRunning || gameState.isPaused) return;
+                
+                // 计算时间差
+                if (!lastTimestamp) lastTimestamp = timestamp;
+                const deltaTime = timestamp - lastTimestamp;
+                lastTimestamp = timestamp;
+                
+                // 清空画布
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // 更新游戏状态
+                updateBlinkState(deltaTime);
+                if (gameState.player) updatePlayer(deltaTime);
+                updateEnemies(deltaTime);
+                updateBullets(deltaTime);
+                updateExplosions(deltaTime);
+                
+                // 检查基地是否被摧毁
+                if (gameState.baseDestroyed) {
+                    gameOver();
+                    return;
+                }
+                
+                // 绘制游戏元素
+                drawMap();
+                if (gameState.player) drawTank(gameState.player);
+                gameState.enemies.forEach(enemy => drawTank(enemy));
+                gameState.bullets.forEach(bullet => drawBullet(bullet));
+                gameState.explosions.forEach(explosion => drawExplosion(explosion));
+                
+                // 继续游戏循环
+                requestAnimationFrame(gameLoop);
+            }
+            
+            function playSound(type) {
+                if (!gameState.soundEnabled) return;
+                // 这里可以添加实际的音效播放代码
+                console.log(`播放音效: ${type}`);
+            }
+            
+            function togglePause() {
+                if (!gameState.isRunning) return;
+                
+                gameState.isPaused = !gameState.isPaused;
+                
+                if (gameState.isPaused) {
+                    pauseScreen.classList.remove('hidden');
+                    playSound('pause');
+                } else {
+                    pauseScreen.classList.add('hidden');
+                    lastTimestamp = 0;
+                    requestAnimationFrame(gameLoop);
+                    playSound('resume');
+                }
+            }
+            
+            function toggleSound() {
+                gameState.soundEnabled = !gameState.soundEnabled;
+                soundBtn.innerHTML = gameState.soundEnabled 
+                    ? '<i class="fa fa-volume-up"></i>' 
+                    : '<i class="fa fa-volume-off"></i>';
+            }
+            
+            // 键盘控制
+            document.addEventListener('keydown', (e) => {
+                if (!gameState.isRunning && e.code !== 'Space') return;
+                
+                switch(e.code) {
+                    case 'ArrowUp':
+                        gameState.controls.up = true;
+                        break;
+                    case 'ArrowDown':
+                        gameState.controls.down = true;
+                        break;
+                    case 'ArrowLeft':
+                        gameState.controls.left = true;
+                        break;
+                    case 'ArrowRight':
+                        gameState.controls.right = true;
+                        break;
+                    case 'Space':
+                        if (!gameState.isRunning) {
+                            initGame();
+                        } else {
+                            gameState.controls.fire = true;
+                        }
+                        break;
+                    case 'KeyP':
+                        if (gameState.isRunning) {
+                            togglePause();
+                        }
+                        break;
+                }
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                switch(e.code) {
+                    case 'ArrowUp':
+                        gameState.controls.up = false;
+                        break;
+                    case 'ArrowDown':
+                        gameState.controls.down = false;
+                        break;
+                    case 'ArrowLeft':
+                        gameState.controls.left = false;
+                        break;
+                    case 'ArrowRight':
+                        gameState.controls.right = false;
+                        break;
+                }
+            });
+            
+            // 移动设备触摸控制
+            btnUp.addEventListener('touchstart', () => gameState.controls.up = true);
+            btnUp.addEventListener('touchend', () => gameState.controls.up = false);
+            
+            btnDown.addEventListener('touchstart', () => gameState.controls.down = true);
+            btnDown.addEventListener('touchend', () => gameState.controls.down = false);
+            
+            btnLeft.addEventListener('touchstart', () => gameState.controls.left = true);
+            btnLeft.addEventListener('touchend', () => gameState.controls.left = false);
+            
+            btnRight.addEventListener('touchstart', () => gameState.controls.right = true);
+            btnRight.addEventListener('touchend', () => gameState.controls.right = false);
+            
+            btnFire.addEventListener('touchstart', () => gameState.controls.fire = true);
+            btnFire.addEventListener('touchend', () => gameState.controls.fire = false);
+            
+            // 按钮点击事件
+            startBtn.addEventListener('click', () => initGame());
+            resumeBtn.addEventListener('click', togglePause);
+            restartLevelBtn.addEventListener('click', () => {
+                // 重新开始当前关卡，保留关卡数、分数和生命数
+                initGame({ restartLevel: true });
+            });
+            restartGameBtn.addEventListener('click', () => {
+                // 重新开始整个游戏，重置所有进度
+                initGame();
+            });
+            restartFromOverBtn.addEventListener('click', () => {
+                // 从游戏结束界面重新开始
+                initGame();
+            });
+            pauseBtn.addEventListener('click', togglePause);
+            soundBtn.addEventListener('click', toggleSound);
+            
+            // 初始化样式（设置CSS变量）
+            function initStyles() {
+                const style = document.documentElement.style;
+                ['player', 'enemy', 'bullet', 'brick', 'steel', 'base'].forEach(type => {
+                    const elem = document.createElement('div');
+                    elem.className = `hidden tank-${type}`;
+                    document.body.appendChild(elem);
+                    const computedColor = getComputedStyle(elem).color;
+                    style.setProperty(`--color-tank-${type}`, computedColor);
+                    document.body.removeChild(elem);
+                });
+            }
+            
+            // 初始化样式
+            initStyles();
+        });
+    </script>
+</body>
+</html>
+    
