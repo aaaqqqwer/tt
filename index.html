@@ -1,1 +1,180 @@
-jhjhjhjhjhjhj
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI案例展示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .card-image {
+            height: 200px;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        .card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .card p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .card-tag {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .cards-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>AI应用案例展示</h1>
+        <p>探索各种创新AI解决方案，点击卡片查看详情</p>
+    </div>
+
+    <div class="cards-container">
+        <div class="card" onclick="window.location='case1.html'">
+            <div class="card-image" style="background-image: url('https://picsum.photos/seed/ai1/600/400')"></div>
+            <div class="card-content">
+                <h3>智能图像识别系统</h3>
+                <p>基于深度学习的图像识别技术，可准确识别各类物体和场景，广泛应用于安防、医疗等领域。</p>
+                <span class="card-tag">计算机视觉</span>
+            </div>
+        </div>
+
+        <div class="card" onclick="window.location='case2.html'">
+            <div class="card-image" style="background-image: url('https://picsum.photos/seed/ai2/600/400')"></div>
+            <div class="card-content">
+                <h3>自然语言处理平台</h3>
+                <p>先进的NLP技术，支持多语言翻译、情感分析、智能问答等功能，提升人机交互体验。</p>
+                <span class="card-tag">自然语言</span>
+            </div>
+        </div>
+
+        <div class="card" onclick="window.location='case3.html'">
+            <div class="card-image" style="background-image: url('https://picsum.photos/seed/ai3/600/400')"></div>
+            <div class="card-content">
+                <h3>智能推荐引擎</h3>
+                <p>基于用户行为分析的个性化推荐系统，显著提升用户 engagement 和转化率。</p>
+                <span class="card-tag">机器学习</span>
+            </div>
+        </div>
+
+        <div class="card" onclick="window.location='case4.html'">
+            <div class="card-image" style="background-image: url('https://picsum.photos/seed/ai4/600/400')"></div>
+            <div class="card-content">
+                <h3>预测性维护系统</h3>
+                <p>利用AI预测设备故障，减少停机时间，优化维护成本，提高生产效率。</p>
+                <span class="card-tag">工业AI</span>
+            </div>
+        </div>
+
+        <div class="card" onclick="window.location='case5.html'">
+            <div class="card-image" style="background-image: url('https://picsum.photos/seed/ai5/600/400')"></div>
+            <div class="card-content">
+                <h3>智能客服机器人</h3>
+                <p>24/7在线客服解决方案，支持多渠道接入，显著降低人工客服成本。</p>
+                <span class="card-tag">对话AI</span>
+            </div>
+        </div>
+
+        <div class="card" onclick="window.location='case6.html'">
+            <div class="card-image" style="background-image: url('https://picsum.photos/seed/ai6/600/400')"></div>
+            <div class="card-content">
+                <h3>金融风控模型</h3>
+                <p>基于大数据和AI的实时风险评估系统，有效识别欺诈行为，保障金融安全。</p>
+                <span class="card-tag">金融科技</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>© 2023 AI案例展示平台 | 点击任意卡片查看详情</p>
+    </div>
+</body>
+</html>
