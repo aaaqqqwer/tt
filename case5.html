@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>弹球游戏 - 中等速度</title>
+    <title>弹球游戏 - 多关卡版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
     
@@ -34,6 +34,18 @@
             .text-shadow {
                 text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
             }
+            .level-indicator {
+                background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+                backdrop-filter: blur(10px);
+            }
+            .level-transition {
+                animation: levelTransition 1s ease-in-out;
+            }
+            @keyframes levelTransition {
+                0% { opacity: 0; transform: scale(0.8); }
+                50% { opacity: 1; transform: scale(1.1); }
+                100% { opacity: 1; transform: scale(1); }
+            }
         }
     </style>
 </head>
@@ -51,20 +63,27 @@
                 <i class="fa fa-heart text-danger text-xl animate-pulse"></i>
                 <span id="lives" class="text-xl font-bold">3</span>
             </div>
+            
+            <!-- 新增关卡指示器 -->
+            <div class="level-indicator px-4 py-2 rounded-full border border-white/10">
+                <span class="text-sm opacity-75">关卡</span>
+                <span id="level" class="ml-2 text-xl font-bold">1</span>
+                <span class="text-sm opacity-50">/3</span>
+            </div>
+            
             <div class="bg-dark/50 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10">
                 <span class="text-sm opacity-75">得分</span>
                 <span id="score" class="ml-2 text-xl font-bold">0</span>
             </div>
-            <div>
-                <button id="restartBtn" class="bg-primary hover:bg-primary/80 text-white py-2 px-4 rounded-full transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-primary/30">
-                    <i class="fa fa-refresh"></i>
-                    <span>重置</span>
-                </button>
-            </div>
         </div>
         
-        <!-- 速度控制 -->
-        <div class="w-full mb-3 px-2 flex justify-center">
+        <!-- 控制区域 -->
+        <div class="w-full mb-3 px-2 flex justify-between items-center">
+            <button id="restartBtn" class="bg-primary hover:bg-primary/80 text-white py-2 px-4 rounded-full transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-primary/30">
+                <i class="fa fa-refresh"></i>
+                <span>重置</span>
+            </button>
+            
             <div class="bg-dark/50 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10 flex items-center gap-4">
                 <span class="text-sm opacity-75">游戏速度:</span>
                 <button id="slowerBtn" class="bg-dark/70 hover:bg-primary/50 text-white py-1 px-3 rounded-full text-sm transition-all duration-200">
@@ -83,9 +102,18 @@
             <!-- 开始屏幕 -->
             <div id="startScreen" class="absolute inset-0 bg-dark/90 backdrop-blur-sm flex flex-col items-center justify-center z-10">
                 <h2 class="text-2xl md:text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">准备好了吗？</h2>
-                <p class="text-center mb-8 px-6 max-w-md">移动挡板接住球，击碎所有砖块得分！<br>按空格键发射球，使用鼠标或方向键控制挡板</p>
+                <p class="text-center mb-8 px-6 max-w-md">闯过3个关卡赢得胜利！<br>按空格键发射球，使用鼠标或方向键控制挡板</p>
                 <button id="startBtn" class="bg-secondary hover:bg-secondary/80 text-white py-3 px-8 rounded-full text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-secondary/30">
                     开始游戏
+                </button>
+            </div>
+            
+            <!-- 关卡过渡屏幕 -->
+            <div id="levelScreen" class="absolute inset-0 bg-dark/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
+                <h2 id="levelTitle" class="text-3xl md:text-4xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent level-transition">第2关</h2>
+                <p class="text-xl mb-6">准备好了吗？</p>
+                <button id="nextLevelBtn" class="bg-primary hover:bg-primary/80 text-white py-2 px-6 rounded-full text-lg transition-all duration-300 transform hover:scale-105">
+                    开始
                 </button>
             </div>
             
@@ -97,16 +125,17 @@
             <!-- 游戏结束屏幕 -->
             <div id="gameOverScreen" class="absolute inset-0 bg-dark/90 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
                 <h2 class="text-2xl md:text-3xl font-bold mb-2 text-danger">游戏结束</h2>
+                <p class="text-xl mb-2">已闯到: <span id="finalLevel" class="font-bold text-primary">1</span> 关</p>
                 <p class="text-xl mb-4">最终得分: <span id="finalScore" class="font-bold text-primary">0</span></p>
                 <button id="playAgainBtn" class="bg-primary hover:bg-primary/80 text-white py-3 px-8 rounded-full text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-primary/30">
                     再玩一次
                 </button>
             </div>
             
-            <!-- 胜利屏幕 -->
+            <!-- 胜利屏幕 (通关所有关卡) -->
             <div id="winScreen" class="absolute inset-0 bg-dark/90 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
-                <h2 class="text-2xl md:text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">恭喜胜利！</h2>
-                <p class="text-xl mb-4">你的得分: <span id="winScore" class="font-bold text-primary">0</span></p>
+                <h2 class="text-2xl md:text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">恭喜通关所有关卡！</h2>
+                <p class="text-xl mb-6">你的得分: <span id="winScore" class="font-bold text-primary">0</span></p>
                 <button id="playAgainWinBtn" class="bg-primary hover:bg-primary/80 text-white py-3 px-8 rounded-full text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-primary/30">
                     再玩一次
                 </button>
@@ -136,29 +165,59 @@
             let ballLaunched = false; // 球是否已发射
             let animationId = null;
             
-            // 速度控制变量 - 调整为中间速度（之前的0.6和更早版本的0.7之间）
-            let speedMultiplier = 0.35; // 中间速度值
+            // 关卡相关变量
+            let currentLevel = 1;
+            const totalLevels = 3;
             
-            // 元素尺寸和位置 - 基础速度也调整为中间值
+            // 速度控制变量 - 基础速度会随关卡提升
+            let baseSpeedMultiplier = 0.35; // 基础速度乘数
+            let speedMultiplier = baseSpeedMultiplier;
+            
+            // 元素尺寸和位置
             let paddle = { 
                 x: 0, 
                 y: 0, 
                 width: 100, 
                 height: 15, 
-                baseSpeed: 5.5 // 中间挡板速度
+                baseSpeed: 5.5 
             };
             let ball = { 
                 x: 0, 
                 y: 0, 
                 radius: 10, 
-                baseDx: 3.75, // 中间球水平速度
-                baseDy: -3.75, // 中间球垂直速度
+                baseDx: 3.75, 
+                baseDy: -3.75, 
                 dx: 0, 
                 dy: 0 
             };
             let bricks = [];
             let score = 0;
             let lives = 3;
+            
+            // 关卡配置 - 不同关卡的砖块布局和难度
+            const levelConfigs = [
+                // 第1关
+                {
+                    rows: 5,
+                    padding: 10,
+                    offsetTop: 50,
+                    speedMultiplier: 1.0 // 基础速度的100%
+                },
+                // 第2关
+                {
+                    rows: 6,
+                    padding: 8,
+                    offsetTop: 40,
+                    speedMultiplier: 1.15 // 比第1关快15%
+                },
+                // 第3关
+                {
+                    rows: 7,
+                    padding: 6,
+                    offsetTop: 30,
+                    speedMultiplier: 1.3 // 比第1关快30%
+                }
+            ];
             
             // 初始化函数
             function init() {
@@ -250,27 +309,40 @@
                 }
             }
             
-            // 更新所有元素速度（基于速度乘数）
+            // 更新所有元素速度（基于速度乘数和关卡）
             function updateSpeed() {
+                // 结合基础速度和关卡速度加成
+                const levelSpeed = levelConfigs[currentLevel - 1].speedMultiplier;
+                const finalSpeed = baseSpeedMultiplier * levelSpeed * speedMultiplier;
+                
                 // 只有球已发射时才更新速度
                 if (ballLaunched) {
-                    ball.dx = ball.baseDx * speedMultiplier;
-                    ball.dy = ball.baseDy * speedMultiplier;
+                    ball.dx = ball.baseDx * finalSpeed;
+                    ball.dy = ball.baseDy * finalSpeed;
                 }
             }
             
-            // 创建砖块
+            // 创建当前关卡的砖块
             function createBricks() {
                 bricks = [];
-                const brickRowCount = 5;
-                const brickColumnCount = Math.floor(canvas.width / 80);
-                const brickWidth = (canvas.width - 40) / brickColumnCount - 10;
+                const config = levelConfigs[currentLevel - 1];
+                
+                // 根据关卡配置调整砖块布局
+                const brickRowCount = config.rows;
+                const brickColumnCount = Math.floor(canvas.width / 70);
+                const brickWidth = (canvas.width - 40) / brickColumnCount - config.padding;
                 const brickHeight = 25;
-                const brickPadding = 10;
-                const brickOffsetTop = 50;
+                const brickPadding = config.padding;
+                const brickOffsetTop = config.offsetTop;
                 const brickOffsetLeft = (canvas.width - (brickColumnCount * (brickWidth + brickPadding))) / 2;
                 
-                const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899'];
+                // 每关使用不同的颜色方案
+                const colorSchemes = [
+                    ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899'],
+                    ['#60A5FA', '#34D399', '#A78BFA', '#FBBF24', '#F472B6'],
+                    ['#93C5FD', '#6EE7B7', '#C4B5FD', '#FDE68A', '#FECACA']
+                ];
+                const colors = colorSchemes[(currentLevel - 1) % colorSchemes.length];
                 
                 for (let c = 0; c < brickColumnCount; c++) {
                     for (let r = 0; r < brickRowCount; r++) {
@@ -286,6 +358,48 @@
                         });
                     }
                 }
+            }
+            
+            // 进入下一关
+            function nextLevel() {
+                // 检查是否已完成所有关卡
+                if (currentLevel >= totalLevels) {
+                    // 游戏胜利
+                    gameWin();
+                    return;
+                }
+                
+                // 增加关卡
+                currentLevel++;
+                document.getElementById('level').textContent = currentLevel;
+                
+                // 显示关卡过渡屏幕
+                document.getElementById('levelTitle').textContent = `第${currentLevel}关`;
+                document.getElementById('levelScreen').classList.remove('hidden');
+                
+                // 暂停游戏
+                gameActive = false;
+            }
+            
+            // 开始当前关卡
+            function startLevel() {
+                // 隐藏关卡过渡屏幕
+                document.getElementById('levelScreen').classList.add('hidden');
+                
+                // 重置球位置，但保留生命值和分数
+                resetBallOnPaddle();
+                
+                // 创建当前关卡的砖块
+                createBricks();
+                
+                // 重新激活游戏
+                gameActive = true;
+                
+                // 确保动画循环正确启动
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+                gameLoop();
             }
             
             // 绑定所有事件处理程序
@@ -307,18 +421,19 @@
                 setupButton('restartBtn', resetGame);
                 setupButton('playAgainBtn', resetGame);
                 setupButton('playAgainWinBtn', resetGame);
+                setupButton('nextLevelBtn', startLevel); // 关卡过渡按钮
                 
                 // 速度控制按钮
                 setupButton('slowerBtn', () => {
                     if (speedMultiplier > 0.3) {
-                        speedMultiplier -= 0.05; // 更小的步长，更精细的调节
+                        speedMultiplier -= 0.05;
                         updateSpeed();
                     }
                 });
                 
                 setupButton('fasterBtn', () => {
                     if (speedMultiplier < 1.5) {
-                        speedMultiplier += 0.05; // 更小的步长，更精细的调节
+                        speedMultiplier += 0.05;
                         updateSpeed();
                     }
                 });
@@ -401,20 +516,23 @@
             // 开始游戏函数
             function startGame() {
                 console.log('开始游戏');
-                // 隐藏所有结束屏幕
+                // 隐藏所有屏幕
                 document.getElementById('startScreen').classList.add('hidden');
                 document.getElementById('gameOverScreen').classList.add('hidden');
                 document.getElementById('winScreen').classList.add('hidden');
+                document.getElementById('levelScreen').classList.add('hidden');
                 
                 // 重置游戏状态
                 gameActive = true;
                 ballLaunched = false;
                 score = 0;
                 lives = 3;
+                currentLevel = 1;
                 
                 // 更新UI显示
                 document.getElementById('score').textContent = score;
                 document.getElementById('lives').textContent = lives;
+                document.getElementById('level').textContent = currentLevel;
                 
                 // 重置游戏元素
                 resetGameElements();
@@ -452,7 +570,10 @@
                 }
                 
                 // 移动挡板
-                const paddleSpeed = paddle.baseSpeed * speedMultiplier;
+                const levelSpeed = levelConfigs[currentLevel - 1].speedMultiplier;
+                const finalSpeed = baseSpeedMultiplier * levelSpeed * speedMultiplier;
+                const paddleSpeed = paddle.baseSpeed * finalSpeed;
+                
                 if (rightPressed && paddle.x < canvas.width - paddle.width) {
                     paddle.x += paddleSpeed;
                 } else if (leftPressed && paddle.x > 0) {
@@ -508,7 +629,9 @@
                         
                         // 根据撞击位置调整水平速度
                         const hitPosition = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
-                        ball.dx = hitPosition * ball.baseDx * speedMultiplier;
+                        const levelSpeed = levelConfigs[currentLevel - 1].speedMultiplier;
+                        const finalSpeed = baseSpeedMultiplier * levelSpeed * speedMultiplier;
+                        ball.dx = hitPosition * ball.baseDx * finalSpeed;
                     } else {
                         // 失去生命
                         lives--;
@@ -535,25 +658,32 @@
                             score += 10;
                             document.getElementById('score').textContent = score;
                             
-                            // 检查胜利
-                            checkWin();
+                            // 检查本关是否完成
+                            checkLevelComplete();
                         }
                     }
                 }
             }
             
-            // 检查胜利条件
-            function checkWin() {
+            // 检查本关是否完成
+            function checkLevelComplete() {
                 const remainingBricks = bricks.filter(brick => brick.status === 1);
                 if (remainingBricks.length === 0) {
-                    document.getElementById('winScore').textContent = score;
-                    document.getElementById('winScreen').classList.remove('hidden');
-                    gameActive = false;
+                    // 本关完成，进入下一关
+                    nextLevel();
                 }
+            }
+            
+            // 游戏胜利（通关所有关卡）
+            function gameWin() {
+                document.getElementById('winScore').textContent = score;
+                document.getElementById('winScreen').classList.remove('hidden');
+                gameActive = false;
             }
             
             // 游戏结束
             function gameOver() {
+                document.getElementById('finalLevel').textContent = currentLevel;
                 document.getElementById('finalScore').textContent = score;
                 document.getElementById('gameOverScreen').classList.remove('hidden');
                 gameActive = false;
